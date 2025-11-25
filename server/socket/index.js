@@ -17,6 +17,13 @@ module.exports = (io) => {
         socket.join(roomId);
         io.to(roomId).emit("userJoined", { user, roomId });
 
+        // ✅ Load previous messages
+        const messages = await Message.find({ room: roomId })
+          .sort({ createdAt: 1 }) // oldest first
+          .populate("sender", "username");
+
+        socket.emit("loadMessages", messages);
+
         // ✅ Typing Indicator
         socket.on("typing", ({ roomId, username }) => {
           socket.to(roomId).emit("typing", username);
@@ -33,7 +40,7 @@ module.exports = (io) => {
               sender: senderId,
               room: roomId,
               content,
-              delivered: true, // mark as delivered
+              delivered: true,
             });
 
             const fullMessage = await message.populate("sender", "username");
