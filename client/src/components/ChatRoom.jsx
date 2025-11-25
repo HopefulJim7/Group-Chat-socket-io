@@ -6,6 +6,7 @@ export default function ChatRoom({ room, messages, user, socket }) {
   const [typingUser, setTypingUser] = useState("");
   const [chatMessages, setChatMessages] = useState(messages || []);
   const msgRef = useRef(null);
+  let typingTimeout = useRef(null);
 
   useEffect(() => {
     setChatMessages(messages || []);
@@ -39,15 +40,29 @@ export default function ChatRoom({ room, messages, user, socket }) {
   }, [chatMessages]);
 
   const handleTyping = () => {
-    socket.emit("typing", user.username); // ✅ send username, not chat text
-    setTimeout(() => socket.emit("stopTyping", user.username), 1000);
+    // Clear any existing timeout
+    if (typingTimeout.current) clearTimeout(typingTimeout.current);
+
+    // Emit typing with roomId + username
+    socket.emit("typing", { roomId: room._id, username: user.username });
+
+    // Stop typing after 1s of inactivity
+    typingTimeout.current = setTimeout(() => {
+      socket.emit("stopTyping", { roomId: room._id, username: user.username });
+    }, 1000);
   };
 
   const handleSend = () => {
     if (chat.trim()) {
-      console.log("Sending message:", { roomId: room._id, content: chat, senderId: user._id });
-      emitSendMessage(room._id, chat, user._id); // ✅ aligned with backend
+      console.log("Sending message:", {
+        roomId: room._id,
+        content: chat,
+        senderId: user._id,
+      });
+      emitSendMessage(room._id, chat, user._id);
       setChat("");
+      // Immediately stop typing when message is sent
+      socket.emit("stopTyping", { roomId: room._id, username: user.username });
     }
   };
 
@@ -64,7 +79,11 @@ export default function ChatRoom({ room, messages, user, socket }) {
 
     if (date.toDateString() === today.toDateString()) return "Today";
     if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
-    return date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+    return date.toLocaleDateString([], {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
   };
 
   return (
