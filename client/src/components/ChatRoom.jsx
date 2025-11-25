@@ -3,15 +3,29 @@ import { emitSendMessage } from "../services/backendInt";
 
 export default function ChatRoom({ room, messages, user, socket }) {
   const [chat, setChat] = useState("");
-  const [typingUser, setTypingUser] = useState("");
+  const [typingUsers, setTypingUsers] = useState([]); // ✅ array of users typing
   const [chatMessages, setChatMessages] = useState(messages || []);
   const msgRef = useRef(null);
-  let typingTimeout = useRef(null);
+  const typingTimeout = useRef(null);
 
+  // ✅ Join room once socket connects
   useEffect(() => {
-    setChatMessages(messages || []);
-  }, [messages]);
+    if (!socket) return;
 
+    socket.on("connect", () => {
+      console.log("Socket connected:", socket.id);
+      socket.emit("joinRoom", { username: user.username, roomId: room._id });
+
+      // Mark messages as seen when joining
+      socket.emit("messageSeen", { roomId: room._id, userId: user._id });
+    });
+
+    return () => {
+      socket.off("connect");
+    };
+  }, [socket, room._id, user.username, user._id]);
+
+  // ✅ Handle incoming events
   useEffect(() => {
     socket.on("newMessage", (msg) => {
       console.log("Received newMessage:", msg);
@@ -19,39 +33,46 @@ export default function ChatRoom({ room, messages, user, socket }) {
     });
 
     socket.on("typing", (username) => {
-      setTypingUser(username);
+      setTypingUsers((prev) =>
+        prev.includes(username) ? prev : [...prev, username]
+      );
     });
 
-    socket.on("stopTyping", () => {
-      setTypingUser("");
+    socket.on("stopTyping", (username) => {
+      setTypingUsers((prev) => prev.filter((u) => u !== username));
+    });
+
+    socket.on("messagesSeen", ({ roomId, userId }) => {
+      console.log(`Messages in room ${roomId} seen by user ${userId}`);
     });
 
     return () => {
       socket.off("newMessage");
       socket.off("typing");
       socket.off("stopTyping");
+      socket.off("messagesSeen");
     };
   }, [socket]);
 
+  // ✅ Auto-scroll to bottom
   useEffect(() => {
     if (msgRef.current) {
       msgRef.current.scrollTop = msgRef.current.scrollHeight;
     }
   }, [chatMessages]);
 
+  // ✅ Typing indicator
   const handleTyping = () => {
-    // Clear any existing timeout
     if (typingTimeout.current) clearTimeout(typingTimeout.current);
 
-    // Emit typing with roomId + username
     socket.emit("typing", { roomId: room._id, username: user.username });
 
-    // Stop typing after 1s of inactivity
     typingTimeout.current = setTimeout(() => {
       socket.emit("stopTyping", { roomId: room._id, username: user.username });
     }, 1000);
   };
 
+  // ✅ Send message
   const handleSend = () => {
     if (chat.trim()) {
       console.log("Sending message:", {
@@ -61,11 +82,11 @@ export default function ChatRoom({ room, messages, user, socket }) {
       });
       emitSendMessage(room._id, chat, user._id);
       setChat("");
-      // Immediately stop typing when message is sent
       socket.emit("stopTyping", { roomId: room._id, username: user.username });
     }
   };
 
+  // ✅ Format helpers
   const formatTime = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -84,6 +105,15 @@ export default function ChatRoom({ room, messages, user, socket }) {
       day: "numeric",
       year: "numeric",
     });
+  };
+
+  // ✅ Render typing users nicely
+  const renderTypingUsers = () => {
+    if (typingUsers.length === 0) return null;
+    if (typingUsers.length === 1) return `${typingUsers[0]} is typing...`;
+    if (typingUsers.length === 2)
+      return `${typingUsers[0]} and ${typingUsers[1]} are typing...`;
+    return `${typingUsers.slice(0, 2).join(", ")} and others are typing...`;
   };
 
   return (
@@ -148,9 +178,7 @@ export default function ChatRoom({ room, messages, user, socket }) {
         })}
       </div>
 
-      <div className="mb-2 text-sm text-gray-600">
-        {typingUser && `${typingUser} is typing...`}
-      </div>
+      <div className="mb-2 text-sm text-gray-600">{renderTypingUsers()}</div>
 
       <div className="flex gap-2">
         <input
