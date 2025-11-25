@@ -3,7 +3,7 @@ import { emitSendMessage } from "../services/backendInt";
 
 export default function ChatRoom({ room, messages, user, socket }) {
   const [chat, setChat] = useState("");
-  const [typingUsers, setTypingUsers] = useState([]); // ✅ array of users typing
+  const [typingUsers, setTypingUsers] = useState([]);
   const [chatMessages, setChatMessages] = useState(messages || []);
   const msgRef = useRef(null);
   const typingTimeout = useRef(null);
@@ -15,8 +15,6 @@ export default function ChatRoom({ room, messages, user, socket }) {
     socket.on("connect", () => {
       console.log("Socket connected:", socket.id);
       socket.emit("joinRoom", { username: user.username, roomId: room._id });
-
-      // Mark messages as seen when joining
       socket.emit("messageSeen", { roomId: room._id, userId: user._id });
     });
 
@@ -27,30 +25,44 @@ export default function ChatRoom({ room, messages, user, socket }) {
 
   // ✅ Handle incoming events
   useEffect(() => {
-    socket.on("newMessage", (msg) => {
+    if (!socket) return;
+
+    const handleNewMessage = (msg) => {
       console.log("Received newMessage:", msg);
       setChatMessages((prev) => [...prev, msg]);
-    });
+    };
 
-    socket.on("typing", (username) => {
+    const handleLoadMessages = (msgs) => {
+      console.log("Loaded messages:", msgs);
+      setChatMessages(msgs);
+    };
+
+    const handleTyping = (username) => {
       setTypingUsers((prev) =>
         prev.includes(username) ? prev : [...prev, username]
       );
-    });
+    };
 
-    socket.on("stopTyping", (username) => {
+    const handleStopTyping = (username) => {
       setTypingUsers((prev) => prev.filter((u) => u !== username));
-    });
+    };
 
-    socket.on("messagesSeen", ({ roomId, userId }) => {
+    const handleMessagesSeen = ({ roomId, userId }) => {
       console.log(`Messages in room ${roomId} seen by user ${userId}`);
-    });
+    };
+
+    socket.on("newMessage", handleNewMessage);
+    socket.on("loadMessages", handleLoadMessages);
+    socket.on("typing", handleTyping);
+    socket.on("stopTyping", handleStopTyping);
+    socket.on("messagesSeen", handleMessagesSeen);
 
     return () => {
-      socket.off("newMessage");
-      socket.off("typing");
-      socket.off("stopTyping");
-      socket.off("messagesSeen");
+      socket.off("newMessage", handleNewMessage);
+      socket.off("loadMessages", handleLoadMessages);
+      socket.off("typing", handleTyping);
+      socket.off("stopTyping", handleStopTyping);
+      socket.off("messagesSeen", handleMessagesSeen);
     };
   }, [socket]);
 
@@ -64,7 +76,6 @@ export default function ChatRoom({ room, messages, user, socket }) {
   // ✅ Typing indicator
   const handleTyping = () => {
     if (typingTimeout.current) clearTimeout(typingTimeout.current);
-
     socket.emit("typing", { roomId: room._id, username: user.username });
 
     typingTimeout.current = setTimeout(() => {
@@ -75,11 +86,6 @@ export default function ChatRoom({ room, messages, user, socket }) {
   // ✅ Send message
   const handleSend = () => {
     if (chat.trim()) {
-      console.log("Sending message:", {
-        roomId: room._id,
-        content: chat,
-        senderId: user._id,
-      });
       emitSendMessage(room._id, chat, user._id);
       setChat("");
       socket.emit("stopTyping", { roomId: room._id, username: user.username });
@@ -107,13 +113,32 @@ export default function ChatRoom({ room, messages, user, socket }) {
     });
   };
 
-  // ✅ Render typing users nicely
+  // ✅ Render typing users with Tailwind bubble + fade + dots
   const renderTypingUsers = () => {
     if (typingUsers.length === 0) return null;
-    if (typingUsers.length === 1) return `${typingUsers[0]} is typing...`;
-    if (typingUsers.length === 2)
-      return `${typingUsers[0]} and ${typingUsers[1]} are typing...`;
-    return `${typingUsers.slice(0, 2).join(", ")} and others are typing...`;
+
+    let text = "";
+    if (typingUsers.length === 1) text = `${typingUsers[0]} is typing`;
+    else if (typingUsers.length === 2)
+      text = `${typingUsers[0]} and ${typingUsers[1]} are typing`;
+    else text = `${typingUsers.slice(0, 2).join(", ")} and others are typing`;
+
+    return (
+      <div
+        className={`flex items-center gap-2 text-sm text-gray-600 mt-2 transition-opacity duration-300 ${
+          typingUsers.length > 0 ? "opacity-100" : "opacity-0"
+        }`}
+      >
+        <div className="flex items-center gap-2 bg-gray-200 px-3 py-1 rounded-full shadow-sm">
+          <span>{text}</span>
+          <span className="flex gap-1">
+            <span className="w-2 h-2 bg-gray-600 rounded-full animate-bounce"></span>
+            <span className="w-2 h-2 bg-gray-600 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+            <span className="w-2 h-2 bg-gray-600 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+          </span>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -178,9 +203,10 @@ export default function ChatRoom({ room, messages, user, socket }) {
         })}
       </div>
 
-      <div className="mb-2 text-sm text-gray-600">{renderTypingUsers()}</div>
+      {/* ✅ Typing bubble */}
+      {renderTypingUsers()}
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 mt-2">
         <input
           className="flex-1 p-2 border rounded-lg focus:outline-none focus:ring focus:border-blue-300"
           value={chat}
