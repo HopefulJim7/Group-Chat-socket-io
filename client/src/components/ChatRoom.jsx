@@ -70,7 +70,9 @@ export default function ChatRoom({ room, messages, user, socket }) {
     }
   };
 
-  const formatTime = (dateString) => new Date(dateString).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const formatTime = (dateString) =>
+    new Date(dateString).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
   const formatDateLabel = (dateString) => {
     const date = new Date(dateString);
     const today = new Date();
@@ -90,7 +92,7 @@ export default function ChatRoom({ room, messages, user, socket }) {
       : `${typingUsers.slice(0, 2).join(", ")} and others are typing...`;
 
     return (
-      <div className="mb-2 p-3 rounded-lg shadow-sm max-w-md bg-gray-100 self-start transition-opacity duration-300">
+      <div className="mb-2 p-3 rounded-lg shadow-sm max-w-[90%] bg-gray-100 self-start transition-opacity duration-300">
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-600">{text}</span>
           <span className="flex gap-1">
@@ -104,10 +106,15 @@ export default function ChatRoom({ room, messages, user, socket }) {
   };
 
   return (
-    <div className="flex flex-col h-screen max-w-screen-sm mx-auto px-4 py-2">
-      <h2 className="text-xl sm:text-2xl mb-2 font-semibold text-gray-800 text-center">{room?.name}</h2>
+    <div className="flex flex-col min-h-[100dvh] w-full px-4 py-2 overflow-x-hidden">
+      <h2 className="text-xl sm:text-2xl mb-2 font-semibold text-gray-800 text-center">
+        {room?.name}
+      </h2>
 
-      <div ref={msgRef} className="flex-1 min-h-0 overflow-y-auto border bg-gray-50 p-3 rounded-lg flex flex-col">
+      <div
+        ref={msgRef}
+        className="flex-1 min-h-0 overflow-y-auto border bg-gray-50 p-3 rounded-lg flex flex-col"
+      >
         {chatMessages.length === 0 && (
           <p className="text-gray-500 text-sm">No messages yet</p>
         )}
@@ -115,7 +122,9 @@ export default function ChatRoom({ room, messages, user, socket }) {
         {chatMessages.map((msg, idx) => {
           const prevMsg = chatMessages[idx - 1];
           const showDateSeparator =
-            !prevMsg || new Date(prevMsg.createdAt).toDateString() !== new Date(msg.createdAt).toDateString();
+            !prevMsg ||
+            new Date(prevMsg.createdAt).toDateString() !==
+              new Date(msg.createdAt).toDateString();
 
           return (
             <div key={idx}>
@@ -126,11 +135,19 @@ export default function ChatRoom({ room, messages, user, socket }) {
                   </span>
                 </div>
               )}
-              <div className={`mb-2 p-3 rounded-lg shadow-sm max-w-md ${msg.sender._id === user?._id ? "bg-blue-100 self-end" : "bg-white self-start"}`}>
+              <div
+                className={`mb-2 p-3 rounded-lg shadow-sm w-fit max-w-[90%] break-words ${
+                  msg.sender._id === user?._id
+                    ? "bg-blue-100 self-end"
+                    : "bg-white self-start"
+                }`}
+              >
                 <div className="flex justify-between items-center mb-1">
                   <strong className="text-blue-600">{msg.sender.username}</strong>
                   {msg.createdAt && (
-                    <span className="text-xs text-gray-500">{formatTime(msg.createdAt)}</span>
+                    <span className="text-xs text-gray-500">
+                      {formatTime(msg.createdAt)}
+                    </span>
                   )}
                 </div>
                 <p>{msg.content}</p>
@@ -153,7 +170,7 @@ export default function ChatRoom({ room, messages, user, socket }) {
         {renderTypingUsers()}
       </div>
 
-      <div className="flex gap-2 mt-2 sticky bottom-0 bg-white py-2">
+      <div className="flex gap-2 mt-2 sticky bottom-0 bg-white py-2 px-2 z-10 w-full">
         <input
           className="flex-1 p-2 border rounded-lg focus:outline-none focus:ring focus:border-blue-300"
           value={chat}
