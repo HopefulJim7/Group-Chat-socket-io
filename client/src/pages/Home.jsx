@@ -15,6 +15,7 @@ export default function Home({ user }) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [newRoomName, setNewRoomName] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // ✅ Connect socket once on mount
   useEffect(() => {
@@ -65,12 +66,12 @@ export default function Home({ user }) {
       setMessages(res.data);
 
       emitMessageSeen(room._id, user._id);
-      // ❌ Removed toast.success for joining a room
     } catch (err) {
       console.error("Failed to join room or fetch messages", err.message);
       toast.error("Could not join room or load messages");
     } finally {
       setLoading(false);
+      setSidebarOpen(false); // close sidebar on mobile after joining
     }
   };
 
@@ -89,8 +90,21 @@ export default function Home({ user }) {
 
   return (
     <div className="flex h-screen">
-      <aside className="w-1/4 bg-gray-800 text-white p-4">
-        <h2 className="text-lg mb-2">Rooms</h2>
+      {/* Sidebar */}
+      <aside
+        className={`fixed inset-y-0 left-0 transform ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        } transition-transform duration-300 ease-in-out bg-gray-800 text-white w-64 p-4 z-50 md:relative md:translate-x-0 md:w-1/4`}
+      >
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg">Rooms</h2>
+          <button
+            className="md:hidden text-gray-300 hover:text-white"
+            onClick={() => setSidebarOpen(false)}
+          >
+            ✕
+          </button>
+        </div>
 
         <div className="mb-4 flex gap-2">
           <input
@@ -126,7 +140,16 @@ export default function Home({ user }) {
         </ul>
       </aside>
 
+      {/* Main chat area */}
       <main className="flex-1 p-4">
+        {/* Mobile toggle button */}
+        <button
+          className="md:hidden mb-2 px-3 py-2 bg-blue-500 text-white rounded-lg"
+          onClick={() => setSidebarOpen(true)}
+        >
+          ☰ Rooms
+        </button>
+
         {loading && <p className="text-gray-500">Loading messages...</p>}
         {currentRoom ? (
           <ChatRoom
